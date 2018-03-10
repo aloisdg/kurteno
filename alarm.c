@@ -1,98 +1,81 @@
 #include <DS3231_Simple.h>
 
+#define IN1 8
+#define IN2 9
+#define IN3 10
+#define IN4 11
+#define FULL_ROTATION 4076
+
 DS3231_Simple Clock;
 
 int led = 13;
 
+const int phases1[] = {0, 0, 0, 0, 0, 1, 1, 1};
+const int phases2[] = {0, 0, 0, 1, 1, 1, 0, 0};
+const int phases3[] = {0, 1, 1, 1, 0, 0, 0, 0};
+const int phases4[] = {1, 1, 0, 0, 0, 0, 0, 1};
+int Phase = 0;
+int Speed = 100; //MUST BE 1 - 100
+
 void setup() {
-  
-  
-  Serial.begin(9600);  
-  Serial.println();
+
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+   
+  pinMode(led, OUTPUT);
   
   Clock.begin();
-  
-  // We will set 2 alarms, the first alarm will fire at the 30th second of every minute
-  //  and the second alarm will fire every minute (at the 0th second)
-  
-  // First we will disable any existing alarms
   Clock.disableAlarms();
-  
-  // Get an initialized timestamp
   DateTime MyTimestamp = Clock.read();              
 
   /*
   MyTimestamp.Hour      = 8;
   MyTimestamp.Minute    = 30;
   MyTimestamp.Second    = 0;*/
-  MyTimestamp.Second    = 9;
+  MyTimestamp.Second    = 1;
   
   // And now add the alarm to happen when the second matches
-  Clock.setAlarm(MyTimestamp, DS3231_Simple::ALARM_MATCH_SECOND); 
-  
-  // We will set the second alarm to match every minute, since there's 
-  // no specific time/date data necessary for that we don't have to
-  // supply any (but you could if you wanted just like the above).
-  //Clock.setAlarm(DS3231_Simple::ALARM_EVERY_MINUTE); 
-  
-  // See comments at bottom of file for more alarm types!
-  
-  Serial.println("Waiting for alarms...");
-  
+  Clock.setAlarm(MyTimestamp, DS3231_Simple::ALARM_MATCH_SECOND);  
+  Serial.begin(115200);
 }
 
 void loop() 
 { 
-  // To check the alarms we just ask the clock
   uint8_t AlarmsFired = Clock.checkAlarms();
   
   // Then can check if either alarm is fired (there are 2 alarms possible in the chip)
   // by using a "bitwise and"
   if(AlarmsFired & 1)
   {
-    Clock.printTo(Serial);
-    Serial.println(": First alarm has fired!");
+    stepper(FULL_ROTATION); 
     digitalWrite(led, HIGH);
     delay(1000);
   }
-  /*
-  if(AlarmsFired & 2)
-  {
-    Clock.printTo(Serial);
-    Serial.println(": Second alarm has fired!");
-  }*/
   digitalWrite(led, LOW);
 }
 
 
- /* There are 2 different alarms possible in the chip, the first alarm has a
-  * resolution of seconds, the second a resolution of minutes.
-  * 
-  * Which alarm gets modified by setAlarm() depends on the type of alarm
-  * you want.
-  * 
-  * The following alarm types are available.
-  * 
-  *  (Alarm 1)
-  *    ALARM_EVERY_SECOND  (Timestamp not required)                   
-  *    ALARM_MATCH_SECOND                    
-  *    ALARM_MATCH_SECOND_MINUTE             
-  *    ALARM_MATCH_SECOND_MINUTE_HOUR        
-  *    ALARM_MATCH_SECOND_MINUTE_HOUR_DATE   
-  *    ALARM_MATCH_SECOND_MINUTE_HOUR_DOW    
-  *    
-  * (Alarm 2)
-  *    ALARM_EVERY_MINUTE (Timestamp not required)                   
-  *    ALARM_MATCH_MINUTE                    
-  *    ALARM_MATCH_MINUTE_HOUR               
-  *    ALARM_MATCH_MINUTE_HOUR_DATE          
-  *    ALARM_MATCH_MINUTE_HOUR_DOW           
-  *    
-  * (Alarm 2)
-  *    ALARM_HOURLY   (on the minute of the supplied timestamp *)
-  *    ALARM_DAILY    (on the hour and minute *)            
-  *    ALARM_WEEKLY   (on the hour and minute and day-of-week *)                             
-  *    ALARM_MONTHLY  (on the hour and minute and day-of-month *)
-  * 
-  *  * If set without a timestamp, the current timestamp is used.
-  */
+  
+void stepper(int count)
+{
+  int rotationDirection = count < 1 ? -1 : 1;
+  count *= rotationDirection;
+  for (int x = 0; x < count; x++)
+  {
+    digitalWrite(IN1, phases1[Phase]);
+    digitalWrite(IN2, phases2[Phase]);
+    digitalWrite(IN3, phases3[Phase]);
+    digitalWrite(IN4, phases4[Phase]);
+    IncrementPhase(rotationDirection);
+    delay(100 / Speed);
+  }
+}
+
+void IncrementPhase(int rotationDirection)
+{
+  Phase += 8;
+  Phase += rotationDirection;
+  Phase %= 8;
+}
